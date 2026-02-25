@@ -1,9 +1,9 @@
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "20.0.1"       # this is module version, stays here
+  version = "20.1.0"        # Terraform module version (always >=20.x for latest features)
 
   name    = var.cluster_name
-  version = "1.29"         # this is Kubernetes cluster version
+  version = "1.29"          # Kubernetes cluster version
 
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
@@ -15,5 +15,10 @@ module "eks" {
       min_capacity     = 2
       instance_types   = ["t3.medium"]
     }
+  }
+
+  tags = {
+    Environment = "production"
+    Project     = "django"
   }
 }
