@@ -1,9 +1,41 @@
+provider "aws" {
+  region = var.aws_region
+}
+
+# ---------------------
+# VPC Module
+# ---------------------
+module "vpc" {
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "3.18.1"
+
+  name = "django-vpc"
+  cidr = "10.0.0.0/16"
+
+  azs             = slice(data.aws_availability_zones.available.names, 0, 2)
+  public_subnets  = ["10.0.1.0/24", "10.0.2.0/24"]
+  private_subnets = ["10.0.3.0/24", "10.0.4.0/24"]
+
+  enable_nat_gateway = true
+  single_nat_gateway = true
+
+  tags = {
+    Environment = "production"
+    Project     = "django"
+  }
+}
+
+data "aws_availability_zones" "available" {}
+
+# ---------------------
+# EKS Cluster
+# ---------------------
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "20.1.0" # module version (Terraform registry)
+  version = "20.1.0"        # Module version
 
-  # name            = var.cluster_name
-  cluster_version = "1.29" # Kubernetes cluster version
+  name            = var.cluster_name
+  cluster_version = "1.29"  # Kubernetes version
 
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
@@ -21,4 +53,11 @@ module "eks" {
     Environment = "production"
     Project     = "django"
   }
+}
+
+# ---------------------
+# ECR Repository
+# ---------------------
+resource "aws_ecr_repository" "django" {
+  name = var.ecr_repository
 }

@@ -1,7 +1,7 @@
 variable "aws_region" {
   description = "AWS region to deploy resources"
   type        = string
-  default     = "us-east-2"
+  default     = "us-east-1"
 }
 
 variable "cluster_name" {
@@ -11,7 +11,7 @@ variable "cluster_name" {
 }
 
 variable "ecr_repository" {
-  description = "Name of ECR repository for Django images"
+  description = "ECR repository name"
   type        = string
   default     = "django-enterprise"
 }
