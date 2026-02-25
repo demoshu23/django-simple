@@ -1,3 +1,48 @@
+# name: Build and Deploy Django
+
+# on:
+#   push:
+#     branches: [ "main" ]
+
+# env:
+#   AWS_REGION: us-east-1
+#   ECR_REPOSITORY: django-enterprise
+#   CLUSTER_NAME: django-eks
+#   K8S_NAMESPACE: django-prod
+
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#     - uses: actions/checkout@v4
+
+#     - name: Configure AWS Credentials
+#       uses: aws-actions/configure-aws-credentials@v4
+#       with:
+#         role-to-assume: ${{ secrets.AWS_ROLE }}
+#         aws-region: ${{ env.AWS_REGION }}
+
+#     - name: Login to ECR
+#       uses: aws-actions/amazon-ecr-login@v2
+
+#     - name: Build and Push Docker Image
+#       run: |
+#         docker build -t $ECR_REPOSITORY .
+#         docker tag $ECR_REPOSITORY:latest \
+#         ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:latest
+#         docker push \
+#         ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:latest
+
+#     - name: Update kubeconfig
+#       run: aws eks update-kubeconfig --name $CLUSTER_NAME
+
+#     - name: Deploy with Helm
+#       run: |
+#         helm upgrade --install django ./helm \
+#           --namespace $K8S_NAMESPACE \
+#           --create-namespace
+
 name: Build and Deploy Django
 
 on:
@@ -9,13 +54,15 @@ env:
   ECR_REPOSITORY: django-enterprise
   CLUSTER_NAME: django-eks
   K8S_NAMESPACE: django-prod
+  TERRAFORM_DIR: terraform
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
@@ -23,19 +70,47 @@ jobs:
         role-to-assume: ${{ secrets.AWS_ROLE }}
         aws-region: ${{ env.AWS_REGION }}
 
+    ##############################
+    # Terraform Infrastructure
+    ##############################
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.5.7
+
+    - name: Terraform Init
+      working-directory: ${{ env.TERRAFORM_DIR }}
+      run: terraform init
+
+    - name: Terraform Apply
+      working-directory: ${{ env.TERRAFORM_DIR }}
+      run: terraform apply -auto-approve
+
+    # Capture Terraform outputs
+    - name: Get Terraform Outputs
+      id: tf_outputs
+      working-directory: ${{ env.TERRAFORM_DIR }}
+      run: |
+        echo "ECR_URL=$(terraform output -raw ecr_repository_url)" >> $GITHUB_ENV
+        echo "CLUSTER_NAME=$(terraform output -raw eks_cluster_name)" >> $GITHUB_ENV
+
+    ##############################
+    # Docker Build & Push
+    ##############################
     - name: Login to ECR
       uses: aws-actions/amazon-ecr-login@v2
 
     - name: Build and Push Docker Image
       run: |
         docker build -t $ECR_REPOSITORY .
-        docker tag $ECR_REPOSITORY:latest \
-        ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:latest
-        docker push \
-        ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:latest
+        docker tag $ECR_REPOSITORY:latest $ECR_URL:latest
+        docker push $ECR_URL:latest
 
+    ##############################
+    # Update kubeconfig & Helm Deploy
+    ##############################
     - name: Update kubeconfig
-      run: aws eks update-kubeconfig --name $CLUSTER_NAME
+      run: aws eks update-kubeconfig --name $CLUSTER_NAME --region $AWS_REGION
 
     - name: Deploy with Helm
       run: |
