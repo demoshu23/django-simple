@@ -1,9 +1,9 @@
 module "eks" {
-  source          = "terraform-aws-modules/eks/aws"
-  version         = "20.0.1"
+  source  = "terraform-aws-modules/eks/aws"
+  version = "20.0.1"       # this is module version, stays here
 
-  name    = var.cluster_name      # <- was cluster_name
-  version = "1.29"                # <- was cluster_version
+  name    = var.cluster_name
+  version = "1.29"         # this is Kubernetes cluster version
 
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
